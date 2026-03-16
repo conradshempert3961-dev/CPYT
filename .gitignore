@@ -23,6 +23,11 @@
 # misc
 .DS_Store
 *.pem
+.idea/
+.codex/
+next
+powershell
+sputnik-kamchatka-site@0.1.0
 
 # debug
 npm-debug.log*

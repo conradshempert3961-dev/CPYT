@@ -1,0 +1,12 @@
+BEGIN:VCARD
+VERSION:3.0
+N:;Спутник Камчатка;;;
+FN:Спутник Камчатка
+TEL;TYPE=WORK,VOICE:+74153174832
+TEL;TYPE=WORK,VOICE:+78003012888
+TEL;TYPE=WORK,VOICE:+79841612020
+TEL;TYPE=WORK,VOICE:+79098383685
+ADR;TYPE=WORK:;;Камчатский край, п. Паратунка, ул. Елизова 39;;;Россия
+EMAIL;TYPE=INTERNET:info@spkam.ru
+URL:https://spkam.ru/
+END:VCARD
