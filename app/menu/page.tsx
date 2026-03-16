@@ -87,11 +87,6 @@ export default function MenuPage() {
   }, [q, raw]);
 
   useEffect(() => {
-    const first = filtered[0]?.id;
-    setActiveCat(first ?? "");
-  }, [tab]);
-
-  useEffect(() => {
     const root = listRef.current;
     if (!root) return;
 
@@ -124,6 +119,8 @@ export default function MenuPage() {
   }, [filtered]);
 
   const cats = filtered.length ? filtered : raw;
+  const currentActiveCat =
+    cats.some((cat) => cat.id === activeCat) ? activeCat : (cats[0]?.id ?? "");
 
   return (
     <SiteShell>
@@ -150,11 +147,20 @@ export default function MenuPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <TabButton
                     active={tab === "restaurant"}
-                    onClick={() => setTab("restaurant")}
+                    onClick={() => {
+                      setTab("restaurant");
+                      setActiveCat(restaurantMenu[0]?.id ?? "");
+                    }}
                   >
                     Ресторан
                   </TabButton>
-                  <TabButton active={tab === "pub"} onClick={() => setTab("pub")}>
+                  <TabButton
+                    active={tab === "pub"}
+                    onClick={() => {
+                      setTab("pub");
+                      setActiveCat(pubMenu[0]?.id ?? "");
+                    }}
+                  >
                     Паб
                   </TabButton>
                 </div>
@@ -193,9 +199,12 @@ export default function MenuPage() {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => scrollToId(c.id)}
+                    onClick={() => {
+                      setActiveCat(c.id);
+                      scrollToId(c.id);
+                    }}
                     className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
-                      activeCat === c.id
+                      currentActiveCat === c.id
                         ? "border-[#ca8450] bg-[linear-gradient(135deg,#d49358,#b76b32)] text-white shadow-[0_14px_34px_rgba(183,107,50,0.18)]"
                         : "border-[#e2cdb9] bg-white/76 text-[#675446] hover:border-[#d1a57d] hover:bg-[#fff7f0]"
                     }`}
