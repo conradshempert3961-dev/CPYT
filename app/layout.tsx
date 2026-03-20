@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Montserrat, Prata, Oswald } from "next/font/google";
 import "./globals.css";
 import LuxInteractions from "@/components/LuxInteractions";
+import { LanguageProvider } from "@/components/LanguageProvider";
 
 const montserrat = Montserrat({
   subsets: ["latin", "cyrillic"],
@@ -23,7 +24,7 @@ const oswald = Oswald({
 
 export const metadata: Metadata = {
   title: "Спутник Камчатка",
-  description: "База отдыха: 2 корпуса, коттеджи, ресторан и паб, SPA и 3 бассейна.",
+  description: "База отдыха: 2 корпуса, коттеджи, ресторан и паб, SPA и термальные источники.",
   icons: {
     icon: "/icon.png",
     shortcut: "/favicon.ico",
@@ -38,8 +39,10 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={`${montserrat.variable} ${prata.variable} ${oswald.variable} antialiased`}>
-        <LuxInteractions />
-        {children}
+        <LanguageProvider>
+          <LuxInteractions />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

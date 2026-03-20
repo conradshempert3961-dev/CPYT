@@ -19,7 +19,13 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import { site } from "@/lib/siteData";
+import BrandLogo from "@/components/BrandLogo";
 import FloatingActions from "@/components/FloatingActions";
+import { useLanguage } from "@/components/LanguageProvider";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { t } from "@/lib/i18n";
+import { getSiteContent } from "@/lib/siteContent";
+import { getLandingContent } from "@/lib/landingContent";
 
 type Hotspot = {
   id: string;
@@ -32,6 +38,10 @@ type Hotspot = {
   top: string;
   align?: "left" | "right";
   icon: JSX.Element;
+  preview: {
+    src: string;
+    alt: string;
+  };
 };
 
 type StayCard = {
@@ -44,7 +54,7 @@ type StayCard = {
   badges: string[];
   features: string[];
   note: string;
-  gallery: { src: string; alt: string }[];
+  gallery: { src: string; alt: string; label: string }[];
 };
 
 type PoolStory = {
@@ -68,102 +78,195 @@ type HeroInfoPanel = {
 
 const navItems = [
   { href: "#accommodation", label: "Проживание" },
-  { href: "#spa", label: "SPA и термы" },
+  { href: "#spa", label: "SPA и термальные источники" },
   { href: "#restaurant", label: "Ресторан" },
   { href: "#territory", label: "Территория" },
   { href: "#contacts", label: "Контакты" },
 ];
 
+const yandexRouteHref =
+  "https://yandex.ru/maps/?rtext=~%D0%9A%D0%B0%D0%BC%D1%87%D0%B0%D1%82%D1%81%D0%BA%D0%B8%D0%B9%20%D0%BA%D1%80%D0%B0%D0%B9%2C%20%D1%81.%20%D0%9F%D0%B0%D1%80%D0%B0%D1%82%D1%83%D0%BD%D0%BA%D0%B0%2C%20%D1%83%D0%BB.%20%D0%95%D0%BB%D0%B8%D0%B7%D0%BE%D0%B2%D0%B0%2021&rtt=auto";
+
+function TargetCue({
+  active = false,
+  size = "md",
+}: {
+  active?: boolean;
+  size?: "md" | "sm";
+}) {
+  const sizeClass = size === "sm" ? "h-12 w-12" : "h-14 w-14";
+  const firstRingClass = size === "sm" ? "inset-[8px]" : "inset-[9px]";
+  const secondRingClass = size === "sm" ? "inset-[15px]" : "inset-[18px]";
+  const dotClass = size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3";
+
+  return (
+    <span
+      className={`relative flex ${sizeClass} items-center justify-center rounded-full border shadow-[0_15px_35px_rgba(0,0,0,0.28)] ${
+        active
+          ? "border-[#f2c28d] bg-[linear-gradient(135deg,#d49358,#b76b32)]"
+          : "border-white/20 bg-[#101a2e]/70 backdrop-blur-xl"
+      }`}
+    >
+      <span
+        className={`absolute ${firstRingClass} rounded-full border transition ${
+          active ? "border-white/65" : "border-white/35"
+        }`}
+      />
+      <span
+        className={`absolute ${secondRingClass} rounded-full border transition ${
+          active ? "border-white/42" : "border-white/20"
+        }`}
+      />
+      <span className={`${dotClass} rounded-full ${active ? "bg-white" : "bg-[#f0d0ad]"}`} />
+    </span>
+  );
+}
+
+function getHeroHotspotPopoverPosition(spot: Hotspot) {
+  const left = Number.parseFloat(spot.left);
+  const top = Number.parseFloat(spot.top);
+  const horizontalClass = left >= 72 ? "right-[calc(100%+18px)]" : "left-[calc(100%+18px)]";
+
+  if (top <= 28) {
+    return `${horizontalClass} top-[calc(100%+18px)]`;
+  }
+
+  if (top >= 74) {
+    return `${horizontalClass} bottom-[calc(100%+18px)]`;
+  }
+
+  return `${horizontalClass} top-1/2 -translate-y-1/2`;
+}
+
 const heroStats = [
   {
-    label: "2 корпуса",
-    text: "Номера и улучшенные категории",
+    label: "Корпус Спутник",
+    text: "Основное проживание и быстрый заезд",
     icon: <BuildingOffice2Icon className="h-5 w-5" />,
   },
   {
-    label: "Коттеджи и номера",
-    text: "Для пары, семьи и компании",
+    label: "Коттеджи",
+    text: "Отдельный формат для семьи и компании",
     icon: <HomeModernIcon className="h-5 w-5" />,
   },
   {
-    label: "3 термальных бассейна",
-    text: "Тепло на территории комплекса",
-    icon: <FireIcon className="h-5 w-5" />,
+    label: "Паб «Берлога»",
+    text: "Вечерний формат прямо на территории",
+    icon: <BuildingStorefrontIcon className="h-5 w-5" />,
   },
   {
-    label: "Ресторан и паб",
-    text: "Ужин и вечер без выездов",
+    label: "Ресторан «Спутник»",
+    text: "Спокойный ужин без выездов",
     icon: <BuildingStorefrontIcon className="h-5 w-5" />,
+  },
+  {
+    label: "Термальные источники и SPA",
+    text: "Тёплая вода, SPA и расслабляющий ритм отдыха",
+    icon: <FireIcon className="h-5 w-5" />,
   },
 ];
 
 const heroHotspots: Hotspot[] = [
   {
     id: "hotel",
-    title: "Гостиница",
-    caption: "2 корпуса и несколько категорий размещения",
-    description: "Комфортные номера, улучшенные категории и понятный сервис без лишних шагов.",
-    stat: "Корпуса: 2",
-    details: ["Стандартные номера", "Улучшенные категории", "Быстрое заселение"],
-    left: "36%",
-    top: "28%",
-    align: "right",
+    title: "Корпус Спутник",
+    caption: "Основной корпус с проживанием и быстрым заездом",
+    description: "Главный корпус комплекса, где удобно заселиться, выйти к бассейну и быстро включиться в отдых.",
+    stat: "Основной корпус",
+    details: ["Номера и категории", "Быстрое заселение", "Рядом с бассейном"],
+    left: "109.5%",
+    top: "46.8%",
+    align: "left",
     icon: <BuildingOffice2Icon className="h-5 w-5" />,
-  },
-  {
-    id: "pool",
-    title: "Термальный бассейн",
-    caption: "Тёплая вода и SPA рядом с проживанием",
-    description: "Открытые термы, расслабляющий ритм и сценарий отдыха без логистики.",
-    stat: "Температура: 38.5°C",
-    details: ["3 бассейна", "SPA-процедуры", "Можно приехать на день"],
-    left: "22%",
-    top: "63%",
-    icon: <FireIcon className="h-5 w-5" />,
-  },
-  {
-    id: "restaurant",
-    title: "Ресторан и паб",
-    caption: "Два формата питания прямо на территории",
-    description: "Спокойный ужин, меню на каждый день и вечерний формат без поездок по Паратунке.",
-    stat: "Форматов: 2",
-    details: ["Ресторан «Спутник»", "Паб «Берлога»", "Бронь столика заранее"],
-    left: "12%",
-    top: "46%",
-    icon: <BuildingStorefrontIcon className="h-5 w-5" />,
+    preview: {
+      src: "/images/hotel-exterior-real.png",
+      alt: "Корпус Спутник на территории комплекса",
+    },
   },
   {
     id: "cottages",
     title: "Коттеджи",
-    caption: "Отдельный формат для семьи и компании",
-    description: "Больше приватности, собственный ритм отдыха и ощущение отдельного пространства.",
-    stat: "Формат: приватный",
+    caption: "Отдельный формат проживания для семьи и компании",
+    description: "Больше приватности, отдельный вход и ощущение, что отдых разворачивается в собственном ритме.",
+    stat: "Приватный формат",
     details: ["Для семьи и компании", "Больше пространства", "Тишина и отдельность"],
-    left: "66%",
-    top: "29%",
-    align: "right",
+    left: "74.8%",
+    top: "43.8%",
+    align: "left",
     icon: <HomeModernIcon className="h-5 w-5" />,
+    preview: {
+      src: "/images/cottage-exterior-real.jpg",
+      alt: "Коттеджи на территории комплекса",
+    },
+  },
+  {
+    id: "pub",
+    title: "Паб «Берлога»",
+    caption: "Камерный вечерний формат на территории комплекса",
+    description: "Плотный интерьер, приватная атмосфера и вечерний сценарий, когда никуда не нужно ехать после ужина.",
+    stat: "Паб на территории",
+    details: ["Вечерний формат", "Барная атмосфера", "Удобно после SPA"],
+    left: "63.2%",
+    top: "47.6%",
+    align: "left",
+    icon: <BuildingStorefrontIcon className="h-5 w-5" />,
+    preview: {
+      src: "/images/restaurant-pub-real.jpg",
+      alt: "Интерьер паба Берлога",
+    },
+  },
+  {
+    id: "restaurant",
+    title: "Ресторан «Спутник»",
+    caption: "Основной ресторан для спокойного ужина без выездов",
+    description: "Хороший вариант для семейного ужина, бронирования столика и размеренного вечера прямо на территории.",
+    stat: "Ресторан комплекса",
+    details: ["Основной ресторан", "Спокойный ужин", "Бронирование столика"],
+    left: "71.4%",
+    top: "64.2%",
+    align: "left",
+    icon: <BuildingStorefrontIcon className="h-5 w-5" />,
+    preview: {
+      src: "/images/gallery_05.jpg",
+      alt: "Интерьер ресторана Спутник",
+    },
+  },
+  {
+    id: "pool",
+    title: "Термальные источники и бассейн",
+    caption: "Тёплая вода как центральная точка отдыха",
+    description: "Отдельная точка на бассейне сразу показывает, где начинается главный сценарий расслабления.",
+    stat: "Тёплая вода",
+    details: ["Открытый бассейн", "SPA рядом", "Можно приехать на день"],
+    left: "38.6%",
+    top: "83.0%",
+    align: "left",
+    icon: <FireIcon className="h-5 w-5" />,
+    preview: {
+      src: "/images/gallery_01.jpg",
+      alt: "Термальный бассейн комплекса",
+    },
   },
 ];
 
 const heroInfoPanels: HeroInfoPanel[] = [
   {
     id: "interactive",
-    eyebrow: "Территория комплекса",
-    title: "Территория оживает",
-    lead: "Наведите на точки, чтобы увидеть бассейны, корпуса, ресторан и коттеджи на территории комплекса.",
+    eyebrow: "с. Паратунка · ул. Елизова, 21",
+    title: "Смотрите, где что находится",
+    lead: "Наводите на точки, чтобы увидеть корпус, коттеджи, паб, ресторан и бассейн прямо поверх главного кадра.",
     description:
-      "Так проще сразу понять, где находятся ключевые зоны отдыха и как удобно устроено пространство.",
-    accent: "Бассейны • корпуса • ресторан • коттеджи",
+      "Так быстрее считывается территория: где заселиться, где жить отдельно, где провести вечер и как всё связано с термальными источниками, SPA и проживанием в один маршрут.",
+    accent: "Корпус • коттеджи • паб • ресторан • бассейн",
     icon: <SparklesIcon className="h-5 w-5" />,
   },
   {
     id: "contact",
     eyebrow: "Быстрый контакт",
     title: "Связь без лишних шагов",
-    lead: "Подбор номера, заезд, термы и ресторан можно закрыть прямо с первого экрана одним касанием.",
+    lead: "Подбор номера, заезд, термальные источники и ресторан можно закрыть прямо с первого экрана одним касанием.",
     description:
-      "Администратор поможет быстро подобрать проживание, термы и удобный вариант бронирования.",
+      "Администратор поможет быстро подобрать проживание, термальные источники и удобный вариант бронирования.",
     accent: site.bookingPhones[0].display,
     icon: <PhoneIcon className="h-5 w-5" />,
   },
@@ -183,10 +286,21 @@ const stayCollections: StayCard[] = [
     features: ["Вид на сопки", "Тихие этажи", "Рядом с термами", "Удобно для коротких поездок"],
     note: "Подскажем, какой корпус и категория подойдут именно под ваши даты и состав гостей.",
     gallery: [
-      { src: "/images/room-standard.jpg", alt: "Стандартный номер" },
-      { src: "/images/room.jpg", alt: "Номер с видом" },
-      { src: "/images/gallery_12.jpg", alt: "Улучшенный номер" },
-      { src: "/images/gallery_02.jpg", alt: "Корпус рядом с бассейном" },
+      {
+        src: "/images/room-standard-sputnik-2.png",
+        alt: "Зона отдыха в стандартном номере",
+        label: "Стандарт",
+      },
+      {
+        src: "/images/room-standard-balcony-1.png",
+        alt: "Стандарт с балконом",
+        label: "Стандарт с балконом",
+      },
+      {
+        src: "/images/room-standard-balcony-2.png",
+        alt: "Стандартный номер с балконной дверью",
+        label: "Стандарт с балконом",
+      },
     ],
   },
   {
@@ -202,10 +316,26 @@ const stayCollections: StayCard[] = [
     features: ["Панорамный свет", "Более выразительный интерьер", "Повышенный комфорт", "Подходит для особых дат"],
     note: "Можно собрать сценарий с проживанием, термами и ужином в одном бронировании.",
     gallery: [
-      { src: "/images/gallery_12.jpg", alt: "Улучшенный номер с видом" },
-      { src: "/images/room.jpg", alt: "Номер с балконом" },
-      { src: "/images/room-standard.jpg", alt: "Номер в светлых тонах" },
-      { src: "/images/gallery_03.jpg", alt: "SPA-зона рядом" },
+      {
+        src: "/images/room-premium-standard-1.png",
+        alt: "Премиум стандарт с большим окном",
+        label: "Премиум стандарт",
+      },
+      {
+        src: "/images/room-premium-standard-2.png",
+        alt: "Премиум стандарт в светлых тонах",
+        label: "Премиум стандарт",
+      },
+      {
+        src: "/images/room-lux-sputnik-1.png",
+        alt: "Люкс в корпусе Спутник",
+        label: "Люкс",
+      },
+      {
+        src: "/images/room-lux-kitchen-1.png",
+        alt: "Люкс с кухней",
+        label: "Люкс с кухней",
+      },
     ],
   },
   {
@@ -221,10 +351,26 @@ const stayCollections: StayCard[] = [
     features: ["Отдельное размещение", "Подходит для семьи", "Больше свободы", "Атмосфера загородного отдыха"],
     note: "Хороший выбор для тех, кто хочет отдыхать в своём ритме и не зависеть от общего потока.",
     gallery: [
-      { src: "/images/cottage-living.jpg", alt: "Гостиная в коттедже" },
-      { src: "/images/cottage-exterior.jpg", alt: "Коттедж зимой" },
-      { src: "/images/gallery_08.jpg", alt: "Тихая территория комплекса" },
-      { src: "/images/gallery_01.jpg", alt: "Вечерний бассейн рядом с коттеджами" },
+      {
+        src: "/images/cottage-living-real.jpg",
+        alt: "Гостиная в коттедже",
+        label: "Гостиная",
+      },
+      {
+        src: "/images/cottage-room-real.jpg",
+        alt: "Спальня в коттедже",
+        label: "Спальня",
+      },
+      {
+        src: "/images/cottage-dining-real.jpg",
+        alt: "Столовая зона в коттедже",
+        label: "Кухня-столовая",
+      },
+      {
+        src: "/images/cottage-exterior-real.jpg",
+        alt: "Фасад коттеджа зимой",
+        label: "Фасад",
+      },
     ],
   },
 ];
@@ -233,32 +379,32 @@ const atmosphereCards = [
   {
     title: "Номера и коттеджи",
     text: "Разный формат размещения под короткий заезд, семейный отдых и приватный сценарий.",
-    image: "/images/room.jpg",
-    className: "md:translate-y-8",
+    image: "/images/cottage-room-real.jpg",
+    className: "",
   },
   {
     title: "Термальные бассейны и SPA",
     text: "Тёплая вода, процедуры и расслабляющий ритм без выездов с территории.",
-    image: "/images/hero-main.png",
-    className: "md:-translate-y-6",
+    image: "/images/gallery_01.jpg",
+    className: "",
   },
   {
     title: "Ресторан и паб",
     text: "Еда, ужин и вечерний формат прямо на месте, когда отдых не надо дробить на поездки.",
-    image: "/images/gallery_04.jpg",
-    className: "md:-translate-y-10",
+    image: "/images/restaurant-pub-real.jpg",
+    className: "",
   },
   {
     title: "Территория для отдыха",
     text: "Тишина, снег, прогулки и ощущение отдельного мира, где не нужно спешить.",
-    image: "/images/gallery_08.jpg",
-    className: "md:translate-y-10",
+    image: "/images/territory-walk-real.png",
+    className: "",
   },
   {
-    title: "Сервис без суеты",
-    text: "Подтверждение, ответы и организация так, чтобы гость чувствовал заботу, а не процесс.",
-    image: "/images/gallery_03.jpg",
-    className: "md:translate-y-4 md:col-span-2",
+    title: "Ресепшен и заселение",
+    text: "Стойка ресепшен, быстрое оформление и помощь администратора сразу при заезде без лишней суеты.",
+    image: "/images/reception-real.jpg",
+    className: "md:col-span-2",
   },
 ];
 
@@ -316,19 +462,50 @@ const diningCards = [
 ];
 
 export default function SputnikLanding() {
+  const { locale } = useLanguage();
+  const localizedSite = getSiteContent(locale);
+  const localizedLanding = getLandingContent(locale, localizedSite);
+  const currentSite = locale === "ru" ? getSiteContent("ru") : localizedSite;
+  const iconMap = {
+    hotel: <BuildingOffice2Icon className="h-5 w-5" />,
+    cottages: <HomeModernIcon className="h-5 w-5" />,
+    restaurant: <BuildingStorefrontIcon className="h-5 w-5" />,
+    pub: <BuildingStorefrontIcon className="h-5 w-5" />,
+    pool: <FireIcon className="h-5 w-5" />,
+    sparkles: <SparklesIcon className="h-5 w-5" />,
+    phone: <PhoneIcon className="h-5 w-5" />,
+  } as const;
+  const currentNavItems = locale === "ru" ? navItems : localizedLanding.navItems;
+  const currentHeroStats =
+    locale === "ru"
+      ? heroStats
+      : localizedLanding.heroStats.map((item) => ({ ...item, icon: iconMap[item.icon] }));
+  const currentHeroHotspots =
+    locale === "ru"
+      ? heroHotspots
+      : localizedLanding.heroHotspots.map((item) => ({ ...item, icon: iconMap[item.icon] }));
+  const currentHeroInfoPanels =
+    locale === "ru"
+      ? heroInfoPanels
+      : localizedLanding.heroInfoPanels.map((item) => ({ ...item, icon: iconMap[item.icon] }));
+  const currentStayCollections = locale === "ru" ? stayCollections : localizedLanding.stayCollections;
+  const currentAtmosphereCards = locale === "ru" ? atmosphereCards : localizedLanding.atmosphereCards;
+  const currentPoolStories = locale === "ru" ? poolStories : localizedLanding.poolStories;
+  const currentDiningCards = locale === "ru" ? diningCards : localizedLanding.diningCards;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeHotspot, setActiveHotspot] = useState<string | null>(null);
+  const [hoveredHotspotId, setHoveredHotspotId] = useState<string | null>(null);
+  const [selectedHotspotId, setSelectedHotspotId] = useState<string>("hotel");
   const [activeHeroPanel, setActiveHeroPanel] = useState<string | null>("interactive");
   const [activePoolStoryId, setActivePoolStoryId] = useState("guests");
   const [activeStayId, setActiveStayId] = useState("cottages");
   const [activeGalleryIndex, setActiveGalleryIndex] = useState(0);
 
-  const activeStay = stayCollections.find((item) => item.id === activeStayId) ?? stayCollections[0];
+  const activeStay = currentStayCollections.find((item) => item.id === activeStayId) ?? currentStayCollections[0];
   const activeImage = activeStay.gallery[activeGalleryIndex] ?? activeStay.gallery[0];
-  const activePoolStory = poolStories.find((item) => item.id === activePoolStoryId) ?? poolStories[1];
-  const cleanPoolStory = poolStories.find((item) => item.id === "clean") ?? poolStories[0];
-  const waterPoolStory = poolStories.find((item) => item.id === "water") ?? poolStories[1];
-  const guestsPoolStory = poolStories.find((item) => item.id === "guests") ?? poolStories[2];
+  const activePoolStory = currentPoolStories.find((item) => item.id === activePoolStoryId) ?? currentPoolStories[1];
+  const cleanPoolStory = currentPoolStories.find((item) => item.id === "clean") ?? currentPoolStories[0];
+  const waterPoolStory = currentPoolStories.find((item) => item.id === "water") ?? currentPoolStories[1];
+  const guestsPoolStory = currentPoolStories.find((item) => item.id === "guests") ?? currentPoolStories[2];
 
   const changeStay = (stayId: string) => {
     setActiveStayId(stayId);
@@ -338,16 +515,15 @@ export default function SputnikLanding() {
   return (
     <div className="relative isolate overflow-hidden bg-[#0a1324] text-white">
       <header className="fixed inset-x-0 top-0 z-50">
-        <div className="mx-auto max-w-[1400px] px-4 pt-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1280px] px-4 pt-4 sm:px-6 lg:px-8">
           <div className="rounded-[28px] border border-white/10 bg-[#0d1426]/70 px-4 py-3 shadow-[0_24px_80px_rgba(3,8,20,0.25)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4">
               <Link href="#top" className="min-w-0">
-                <p className="title-font text-2xl tracking-[0.16em] text-[#f0d0ad] sm:text-[2.1rem]">СПУТНИК</p>
-                <p className="text-[10px] uppercase tracking-[0.42em] text-white/45 sm:text-[11px]">Камчатка</p>
+                <BrandLogo priority />
               </Link>
 
               <nav className="hidden items-center gap-8 lg:flex">
-                {navItems.map((item) => (
+                {currentNavItems.map((item) => (
                   <Link key={item.href} href={item.href} className="text-sm font-medium text-white/82 transition hover:text-white">
                     {item.label}
                   </Link>
@@ -355,17 +531,18 @@ export default function SputnikLanding() {
               </nav>
 
               <div className="hidden items-center gap-3 lg:flex">
+                <LanguageSwitcher compact />
                 <a
-                  href={`tel:${site.bookingPhones[1].tel}`}
+                  href={`tel:${currentSite.bookingPhones[1].tel}`}
                   className="text-sm font-medium text-white/70 transition hover:text-white"
                 >
-                  {site.bookingPhones[1].display}
+                  {currentSite.bookingPhones[1].display}
                 </a>
                 <Link
                   href="#contacts"
                   className="btn-lux inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-5 py-3 text-sm font-semibold text-white"
                 >
-                  Забронировать
+                  {t(locale, { ru: "Забронировать", en: "Book now", zh: "立即预订" })}
                 </Link>
               </div>
 
@@ -374,17 +551,24 @@ export default function SputnikLanding() {
                 onClick={() => setMenuOpen((value) => !value)}
                 className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white lg:hidden"
               >
-                {menuOpen ? "Закрыть" : "Меню"}
+                {t(locale, {
+                  ru: menuOpen ? "Закрыть" : "Меню",
+                  en: menuOpen ? "Close" : "Menu",
+                  zh: menuOpen ? "关闭" : "菜单",
+                })}
               </button>
             </div>
           </div>
         </div>
 
         {menuOpen ? (
-          <div className="mx-auto mt-3 max-w-[1400px] px-4 sm:px-6 lg:px-8 lg:hidden">
+          <div className="mx-auto mt-3 max-w-[1280px] px-4 sm:px-6 lg:px-8 lg:hidden">
             <div className="rounded-[28px] border border-white/10 bg-[#0d1426]/92 p-4 shadow-[0_24px_80px_rgba(3,8,20,0.3)] backdrop-blur-xl">
               <div className="flex flex-col gap-2">
-                {navItems.map((item) => (
+                <div className="mb-2">
+                  <LanguageSwitcher compact />
+                </div>
+                {currentNavItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -399,7 +583,7 @@ export default function SputnikLanding() {
                   onClick={() => setMenuOpen(false)}
                   className="btn-lux mt-2 inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-4 py-3 text-sm font-semibold text-white"
                 >
-                  Забронировать
+                  {t(locale, { ru: "Забронировать", en: "Book now", zh: "立即预订" })}
                 </Link>
               </div>
             </div>
@@ -412,33 +596,110 @@ export default function SputnikLanding() {
           <div className="absolute inset-0">
             <Image
               src="/images/hero-top-real.jpg"
-              alt="Спутник Камчатка зимой с видом на бассейн и горы"
+              alt={t(locale, {
+                ru: "Спутник Камчатка зимой с видом на бассейн и горы",
+                en: "Sputnik Kamchatka in winter with a view of the pool and mountains",
+                zh: "冬季的 Sputnik Kamchatka，远眺泳池与山景",
+              })}
               fill
               priority
               className="hero-image-motion object-cover object-[50%_58%]"
             />
-            <div className="hero-glow absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(213,146,89,0.14),transparent_38%),linear-gradient(100deg,rgba(4,9,18,0.92)_15%,rgba(6,10,22,0.55)_45%,rgba(7,10,19,0.22)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(213,146,89,0.14),transparent_38%),linear-gradient(100deg,rgba(4,9,18,0.92)_15%,rgba(6,10,22,0.55)_45%,rgba(7,10,19,0.22)_100%)]" />
             <div className="absolute inset-0 bg-gradient-to-b from-[#08101f]/35 via-transparent to-[#08101f]/72" />
             <div className="absolute inset-0 lux-noise opacity-70" />
           </div>
 
-          <div className="relative mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-            <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+          <div className="relative z-30 mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
+            <div className="relative min-h-[720px] xl:min-h-[780px]">
+              <div className="pointer-events-none absolute inset-0 z-20 hidden xl:block" data-reveal>
+                {currentHeroHotspots.map((spot) => {
+                  const isActive = spot.id === hoveredHotspotId;
+
+                  return (
+                    <button
+                      key={spot.id}
+                      type="button"
+                      aria-label={`Показать: ${spot.title}`}
+                      onMouseEnter={() => setHoveredHotspotId(spot.id)}
+                      onMouseLeave={() => setHoveredHotspotId((current) => (current === spot.id ? null : current))}
+                      onFocus={() => setHoveredHotspotId(spot.id)}
+                      onBlur={() => setHoveredHotspotId((current) => (current === spot.id ? null : current))}
+                      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 ${isActive ? "z-40" : "z-20"}`}
+                      style={{ left: spot.left, top: spot.top }}
+                    >
+                      <TargetCue active={isActive} size="sm" />
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#d49358]/24 blur-xl" />
+
+                      <AnimatePresence>
+                        {isActive ? (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                            className={`pointer-events-none absolute w-[280px] overflow-hidden rounded-[26px] border border-white/14 bg-[#0f1930]/92 text-left shadow-[0_28px_80px_rgba(8,14,28,0.34)] backdrop-blur-xl ${getHeroHotspotPopoverPosition(spot)}`}
+                          >
+                            <div className="relative h-24">
+                              <Image src={spot.preview.src} alt={spot.preview.alt} fill className="object-cover" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#09111f] via-[#09111f]/20 to-transparent" />
+                              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-4 pb-3">
+                                <span className="rounded-full border border-white/16 bg-black/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#f0c996]">
+                                  {spot.stat}
+                                </span>
+                                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white/88">
+                                  {spot.icon}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-4">
+                              <p className="title-font text-[1.75rem] leading-none text-white">{spot.title}</p>
+                              <p className="mt-2 text-xs leading-5 text-white/72">{spot.caption}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {spot.details.map((item) => (
+                                  <span
+                                    key={item}
+                                    className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] text-white/84"
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
               <div className="relative z-10 max-w-3xl xl:max-w-[760px]" data-reveal>
                 <div className="inline-flex rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.34em] text-white/72 backdrop-blur">
-                  Всё в одном месте
+                  {t(locale, {
+                    ru: "с. Паратунка · ул. Елизова, 21",
+                    en: "Paratunka village · 21 Elizova St.",
+                    zh: "帕拉通卡村 · 叶利佐娃街21号",
+                  })}
                 </div>
                 <h1
-                  className="title-font mt-6 max-w-4xl text-[2.85rem] leading-[0.98] text-white sm:text-[4.1rem] lg:text-[5.2rem]"
+                  className="title-font mt-6 max-w-5xl text-[2.85rem] leading-[0.98] text-white sm:text-[4.1rem] lg:text-[5.2rem]"
                   style={{ textShadow: "0 10px 30px rgba(0,0,0,0.28)" }}
                 >
-                  Всё в одном месте.
-                  <br />
-                  Тихая и тёплая Паратунка.
+                  {t(locale, {
+                    ru: "Всё в одном месте тихая и тёплая Паратунка",
+                    en: "Everything in one place in quiet warm Paratunka",
+                    zh: "一切都集中在安静温暖的帕拉通卡",
+                  })}
                 </h1>
                 <p className="mt-6 max-w-2xl text-lg leading-8 text-white/78 sm:text-xl">
-                  Проживание, SPA, ресторан и территория отдыха собраны в один цельный сценарий, который выглядит
-                  статусно и ощущается по-настоящему удобным.
+                  {t(locale, {
+                    ru: "Проживание, термальные источники, ресторан и территория отдыха собраны в один цельный сценарий: заселиться, прогреться в бассейнах, спокойно поужинать и остаться в том же ритме отдыха, не тратя время на лишние переезды по Паратунке.",
+                    en: "Accommodation, thermal springs, dining, and the resort grounds are gathered into one smooth stay: check in, warm up in the pools, enjoy dinner, and remain in the same rhythm without extra trips around Paratunka.",
+                    zh: "住宿、温泉热源体验、餐饮和休闲园区被整合成一条完整的度假动线：办理入住、在泳池中暖身、从容用餐，并始终保持同一种放松节奏，无需在帕拉通卡来回奔波。",
+                  })}
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -446,47 +707,57 @@ export default function SputnikLanding() {
                     href="#contacts"
                     className="btn-lux inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-6 py-4 text-base font-semibold text-white"
                   >
-                    Проверить даты и доступность
+                    {t(locale, {
+                      ru: "Проверить даты и доступность",
+                      en: "Check dates and availability",
+                      zh: "查看日期与可订情况",
+                    })}
                   </Link>
                   <Link
                     href="#accommodation"
                     className="btn-lux inline-flex items-center justify-center rounded-2xl border border-white/18 bg-white/8 px-6 py-4 text-base font-semibold text-white backdrop-blur"
                   >
-                    Смотреть формат проживания
+                    {t(locale, {
+                      ru: "Смотреть формат проживания",
+                      en: "View stay formats",
+                      zh: "查看住宿形式",
+                    })}
                   </Link>
                 </div>
 
                 <div className="mt-10 flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,360px)_minmax(0,320px)] xl:items-start">
                   <div className="sputnik-panel rounded-[30px] p-5 sm:p-6">
-                    <p className="text-xs uppercase tracking-[0.34em] text-white/60">Сценарий бронирования</p>
+                    <p className="text-xs uppercase tracking-[0.34em] text-white/60">
+                      {t(locale, { ru: "Сценарий бронирования", en: "Booking scenario", zh: "预订场景" })}
+                    </p>
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4">
                         <div className="flex items-center gap-2 text-white/70">
                           <CalendarDaysIcon className="h-5 w-5" />
-                          <span className="text-sm">Заезд</span>
+                          <span className="text-sm">{t(locale, { ru: "Заезд", en: "Check-in", zh: "入住" })}</span>
                         </div>
-                        <p className="mt-2 text-lg font-semibold">20 мая, пн</p>
+                        <p className="mt-2 text-lg font-semibold">{t(locale, { ru: "20 мая, пн", en: "May 20, Mon", zh: "5月20日，周一" })}</p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4">
                         <div className="flex items-center gap-2 text-white/70">
                           <CalendarDaysIcon className="h-5 w-5" />
-                          <span className="text-sm">Выезд</span>
+                          <span className="text-sm">{t(locale, { ru: "Выезд", en: "Check-out", zh: "退房" })}</span>
                         </div>
-                        <p className="mt-2 text-lg font-semibold">22 мая, ср</p>
+                        <p className="mt-2 text-lg font-semibold">{t(locale, { ru: "22 мая, ср", en: "May 22, Wed", zh: "5月22日，周三" })}</p>
                       </div>
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-4">
                       <div className="flex items-center gap-2 text-white/70">
                         <UserGroupIcon className="h-5 w-5" />
-                        <span className="text-sm">Состав гостей</span>
+                        <span className="text-sm">{t(locale, { ru: "Состав гостей", en: "Guests", zh: "入住人数" })}</span>
                       </div>
-                      <p className="mt-2 text-lg font-semibold">2 взрослых, 1 номер</p>
+                      <p className="mt-2 text-lg font-semibold">{t(locale, { ru: "2 взрослых, 1 номер", en: "2 adults, 1 room", zh: "2位成人，1间客房" })}</p>
                     </div>
                     <Link
                       href="#contacts"
                       className="btn-lux mt-4 inline-flex w-full items-center justify-between rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-5 py-4 text-base font-semibold text-white"
                     >
-                      Показать сценарии отдыха
+                      {t(locale, { ru: "Показать сценарии отдыха", en: "Show stay scenarios", zh: "查看度假方案" })}
                       <ChevronRightIcon className="h-5 w-5" />
                     </Link>
                     <div className="mt-4 flex flex-col gap-2">
@@ -494,21 +765,25 @@ export default function SputnikLanding() {
                         href="#accommodation"
                         className="inline-flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/82"
                       >
-                        Смотреть проживание
+                        {t(locale, { ru: "Смотреть проживание", en: "View accommodation", zh: "查看住宿" })}
                         <ChevronRightIcon className="h-4 w-4" />
                       </Link>
                       <Link
                         href="#spa"
                         className="inline-flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/82"
                       >
-                        Смотреть SPA и термы
+                        {t(locale, {
+                          ru: "Смотреть SPA и термальные источники",
+                          en: "View SPA and thermal springs",
+                          zh: "查看 SPA 与温泉热源",
+                        })}
                         <ChevronRightIcon className="h-4 w-4" />
                       </Link>
                     </div>
                   </div>
 
                   <div className="hidden xl:flex xl:w-[320px] xl:flex-col xl:gap-4">
-                    {heroInfoPanels.map((panel) => {
+                    {currentHeroInfoPanels.map((panel) => {
                       const isOpen = activeHeroPanel === panel.id;
 
                       return (
@@ -570,11 +845,11 @@ export default function SputnikLanding() {
 
                                     {panel.id === "contact" ? (
                                       <div className="mt-5 space-y-2">
-                                        <a href={`tel:${site.bookingPhones[0].tel}`} className="block text-2xl font-semibold text-white">
-                                          {site.bookingPhones[0].display}
+                                        <a href={`tel:${currentSite.bookingPhones[0].tel}`} className="block text-2xl font-semibold text-white">
+                                          {currentSite.bookingPhones[0].display}
                                         </a>
-                                        <a href={`tel:${site.bookingPhones[1].tel}`} className="block text-sm text-white/70">
-                                          {site.bookingPhones[1].display}
+                                        <a href={`tel:${currentSite.bookingPhones[1].tel}`} className="block text-sm text-white/70">
+                                          {currentSite.bookingPhones[1].display}
                                         </a>
                                       </div>
                                     ) : null}
@@ -589,79 +864,19 @@ export default function SputnikLanding() {
                   </div>
                 </div>
               </div>
-
-              <div className="relative hidden min-h-[680px] xl:block" data-reveal onMouseLeave={() => setActiveHotspot(null)}>
-                {heroHotspots.map((spot) => {
-                  const isActive = spot.id === activeHotspot;
-                  const bubbleSide = spot.align === "right" ? "items-end text-right" : "items-start text-left";
-
-                  return (
-                    <button
-                      key={spot.id}
-                      type="button"
-                      onMouseEnter={() => setActiveHotspot(spot.id)}
-                      onFocus={() => setActiveHotspot(spot.id)}
-                      onClick={() => setActiveHotspot((current) => (current === spot.id ? null : spot.id))}
-                      className={`absolute ${isActive ? "z-30" : "z-10"}`}
-                      style={{ left: spot.left, top: spot.top }}
-                    >
-                      <span
-                        className={`flex h-14 w-14 items-center justify-center rounded-full border text-white shadow-[0_15px_35px_rgba(0,0,0,0.28)] transition ${
-                          isActive
-                            ? "border-[#f2c28d] bg-[linear-gradient(135deg,#d49358,#b76b32)]"
-                            : "border-white/18 bg-[#101a2e]/70 backdrop-blur-xl"
-                        }`}
-                      >
-                        {spot.icon}
-                      </span>
-                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#d49358]/20 blur-2xl" />
-                      <AnimatePresence>
-                        {isActive ? (
-                          <span
-                            className={`pointer-events-none absolute top-1/2 ${spot.align === "right" ? "right-full mr-5" : "left-full ml-5"}`}
-                            style={{ transform: "translateY(-50%)" }}
-                          >
-                            <motion.span
-                              initial={{ opacity: 0, x: spot.align === "right" ? 24 : -24, scale: 0.9 }}
-                              animate={{ opacity: 1, x: 0, scale: 1 }}
-                              exit={{ opacity: 0, x: spot.align === "right" ? 18 : -18, scale: 0.94 }}
-                              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                              className={`flex w-[300px] flex-col rounded-[28px] border border-white/14 bg-[#0f1930]/82 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.34)] backdrop-blur-xl ${bubbleSide}`}
-                            >
-                              <span className="text-xs uppercase tracking-[0.3em] text-[#f0c996]">{spot.stat}</span>
-                              <span className="title-font mt-2 text-2xl text-white">{spot.title}</span>
-                              <span className="mt-2 text-sm leading-6 text-white/75">{spot.caption}</span>
-                              <span className="mt-4 text-sm leading-6 text-white/64">{spot.description}</span>
-                              <span className="mt-4 flex flex-wrap gap-2">
-                                {spot.details.map((item) => (
-                                  <span
-                                    key={item}
-                                    className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-white/80"
-                                  >
-                                    {item}
-                                  </span>
-                                ))}
-                              </span>
-                            </motion.span>
-                          </span>
-                        ) : null}
-                      </AnimatePresence>
-                    </button>
-                  );
-                })}
-
               </div>
+
             </div>
 
             <div className="mt-10 grid gap-4 md:grid-cols-2 xl:hidden" data-reveal>
-              {heroHotspots.map((spot) => {
-                const isActive = spot.id === activeHotspot;
+              {currentHeroHotspots.map((spot) => {
+                const isActive = spot.id === selectedHotspotId;
 
                 return (
                   <button
                     key={spot.id}
                     type="button"
-                    onClick={() => setActiveHotspot((current) => (current === spot.id ? null : spot.id))}
+                    onClick={() => setSelectedHotspotId(spot.id)}
                     className={`window-motion rounded-[28px] border p-5 text-left transition ${
                       isActive
                         ? "border-[#cf8a4b] bg-[linear-gradient(135deg,rgba(208,138,75,0.22),rgba(255,255,255,0.08))]"
@@ -687,15 +902,17 @@ export default function SputnikLanding() {
               })}
             </div>
 
-            <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-reveal>
-              {heroStats.map((item) => (
+            <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5" data-reveal>
+              {currentHeroStats.map((item) => (
                 <div
                   key={item.label}
                   className="window-motion rounded-[26px] border border-white/10 bg-white/8 p-5 shadow-[0_18px_50px_rgba(5,12,24,0.18)] backdrop-blur"
                 >
                   <div className="flex items-center gap-3 text-[#f0c996]">
                     {item.icon}
-                    <p className="text-sm uppercase tracking-[0.22em] text-white/58">Спутник</p>
+                    <p className="text-sm uppercase tracking-[0.22em] text-white/58">
+                      {t(locale, { ru: "Спутник", en: "Sputnik", zh: "Sputnik" })}
+                    </p>
                   </div>
                   <p className="title-font mt-4 text-2xl text-white">{item.label}</p>
                   <p className="mt-2 text-sm leading-6 text-white/68">{item.text}</p>
@@ -705,22 +922,35 @@ export default function SputnikLanding() {
           </div>
         </section>
 
-        <section id="accommodation" className="sputnik-paper relative overflow-hidden">
-          <div className="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
+        <section id="accommodation" className="sputnik-paper relative overflow-hidden scroll-mt-32 sm:scroll-mt-36">
+          <div className="mx-auto max-w-[1280px] px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
             <div className="max-w-4xl" data-reveal>
-              <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">Проживание в «Спутнике»</p>
+              <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">
+                {t(locale, {
+                  ru: "Номера · категории · коттеджи",
+                  en: "Rooms · categories · cottages",
+                  zh: "客房 · 房型 · 别墅小屋",
+                })}
+              </p>
               <h2 className="title-font mt-4 text-4xl leading-[1.06] text-[#1f2837] sm:text-5xl lg:text-[4.2rem]">
-                Выберите формат проживания и сразу погрузитесь в атмосферу
+                {t(locale, {
+                  ru: "Выберите формат проживания и сразу погрузитесь в атмосферу",
+                  en: "Choose the stay format and step into the atmosphere right away",
+                  zh: "选择适合的住宿形式，立刻进入度假氛围",
+                })}
               </h2>
               <p className="mt-6 max-w-3xl text-lg leading-8 text-[#5d5550]">
-                Выберите категорию, откройте главный кадр, посмотрите дополнительные ракурсы и почувствуйте, какой
-                ритм отдыха вам ближе.
+                {t(locale, {
+                  ru: "Выберите категорию, откройте главный кадр, посмотрите дополнительные ракурсы и почувствуйте, какой ритм отдыха вам ближе.",
+                  en: "Choose a category, open the main frame, review extra angles, and feel which rest rhythm suits you best.",
+                  zh: "选择房型、打开主画面、查看更多角度，并感受哪种度假节奏最适合您。",
+                })}
               </p>
             </div>
 
             <div className="mt-12 grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)_330px]">
               <div className="space-y-4" data-reveal>
-                {stayCollections.map((stay) => {
+                {currentStayCollections.map((stay) => {
                   const isActive = stay.id === activeStay.id;
 
                   return (
@@ -764,8 +994,11 @@ export default function SputnikLanding() {
 
                 <div className="window-motion rounded-[28px] border border-[#ead7c8] bg-white/68 p-6 text-[#5f554e] shadow-[0_18px_40px_rgba(89,65,40,0.08)] backdrop-blur">
                   <p className="text-sm leading-7">
-                    Не уверены, какой формат выбрать? Администратор подберёт категорию под даты, количество гостей и
-                    сценарий отдыха.
+                    {t(locale, {
+                      ru: "Не уверены, какой формат выбрать? Администратор подберёт категорию под даты, количество гостей и сценарий отдыха.",
+                      en: "Not sure which format to choose? The administrator will help match the category to your dates, guest count, and rest scenario.",
+                      zh: "还不确定该选哪种形式？管理员会根据您的日期、人数和度假需求帮您匹配合适的房型。",
+                    })}
                   </p>
                 </div>
               </div>
@@ -776,14 +1009,14 @@ export default function SputnikLanding() {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0c1527]/45 via-transparent to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-4 p-6 text-white">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.28em] text-white/68">{activeStay.label}</p>
+                      <p className="text-xs uppercase tracking-[0.28em] text-white/68">{activeImage.label}</p>
                       <p className="title-font mt-2 text-4xl leading-none">{activeStay.label}</p>
                     </div>
                     <Link
                       href="/gallery"
                       className="btn-lux inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-4 py-3 text-sm font-semibold text-white backdrop-blur"
                     >
-                      Все фото
+                      {t(locale, { ru: "Все фото", en: "All photos", zh: "全部照片" })}
                       <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                     </Link>
                   </div>
@@ -798,13 +1031,28 @@ export default function SputnikLanding() {
                         key={image.src}
                         type="button"
                         onClick={() => setActiveGalleryIndex(index)}
-                        className={`window-motion relative overflow-hidden rounded-[22px] border transition ${
+                        className={`window-motion relative overflow-hidden rounded-[22px] border text-left transition ${
                           selected ? "border-[#c97f45] shadow-[0_16px_40px_rgba(189,122,62,0.22)]" : "border-[#ead7c8]"
                         }`}
                       >
                         <div className="relative aspect-[4/3]">
                           <Image src={image.src} alt={image.alt} fill className="object-cover" />
-                          <div className={`absolute inset-0 transition ${selected ? "bg-black/5" : "bg-black/22"}`} />
+                          <div
+                            className={`absolute inset-0 transition ${
+                              selected ? "bg-gradient-to-t from-black/26 via-black/6 to-transparent" : "bg-gradient-to-t from-black/44 via-black/12 to-transparent"
+                            }`}
+                          />
+                          <div className="absolute inset-x-0 bottom-0 p-3">
+                            <span
+                              className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-medium tracking-[0.16em] ${
+                                selected
+                                  ? "border-white/28 bg-white/18 text-white"
+                                  : "border-white/18 bg-black/20 text-white/92"
+                              }`}
+                            >
+                              {image.label}
+                            </span>
+                          </div>
                         </div>
                       </button>
                     );
@@ -817,7 +1065,9 @@ export default function SputnikLanding() {
                     <p className="mt-3 max-w-2xl text-base leading-7 text-[#5d5550]">{activeStay.description}</p>
                   </div>
                   <div className="window-motion rounded-[26px] bg-[#f8efe6] p-5 text-[#5d5550]">
-                    <p className="text-sm uppercase tracking-[0.26em] text-[#926b4c]">Режим выбора</p>
+                    <p className="text-sm uppercase tracking-[0.26em] text-[#926b4c]">
+                      {t(locale, { ru: "Режим выбора", en: "Selection mode", zh: "选择提示" })}
+                    </p>
                     <p className="mt-3 text-sm leading-7">{activeStay.note}</p>
                   </div>
                 </div>
@@ -825,8 +1075,31 @@ export default function SputnikLanding() {
 
               <div className="space-y-6" data-reveal>
                 <div>
-                  <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">Формат</p>
-                  <h3 className="title-font mt-4 text-4xl leading-[1.06] text-[#1f2837]">{activeStay.title}</h3>
+                  <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">
+                    {t(locale, { ru: "Формат", en: "Format", zh: "形式" })}
+                  </p>
+                  <h3 className="title-font mt-4 text-4xl leading-[1.06] text-[#1f2837]">
+                    {activeStay.id === "cottages" ? (
+                      <>
+                        <span className="block">
+                          {t(locale, {
+                            ru: "Коттеджи с ощущением",
+                            en: "Cottages with the feeling of",
+                            zh: "带有专属空间感的",
+                          })}
+                        </span>
+                        <span className="block">
+                          {t(locale, {
+                            ru: "собственной территории",
+                            en: "your own territory",
+                            zh: "别墅小屋",
+                          })}
+                        </span>
+                      </>
+                    ) : (
+                      activeStay.title
+                    )}
+                  </h3>
                   <p className="mt-5 text-base leading-8 text-[#5d5550]">{activeStay.sideText}</p>
                 </div>
 
@@ -847,13 +1120,21 @@ export default function SputnikLanding() {
                     href="#contacts"
                     className="btn-lux inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-5 py-4 text-base font-semibold text-white"
                   >
-                    Проверить даты и доступность
+                    {t(locale, {
+                      ru: "Проверить даты и доступность",
+                      en: "Check dates and availability",
+                      zh: "查看日期与可订情况",
+                    })}
                   </Link>
                   <Link
                     href="/gallery"
                     className="btn-lux mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-[#d6b08d] px-5 py-4 text-base font-semibold text-[#624b39]"
                   >
-                    Смотреть все фотографии
+                    {t(locale, {
+                      ru: "Смотреть все фотографии",
+                      en: "View all photos",
+                      zh: "查看全部照片",
+                    })}
                   </Link>
                 </div>
               </div>
@@ -861,10 +1142,22 @@ export default function SputnikLanding() {
 
             <div className="mt-10 grid gap-4 border-t border-[#e8d5c5] pt-8 md:grid-cols-2 xl:grid-cols-4" data-reveal>
               {[
-                "Тихо и комфортно",
-                "Фотографии сразу в контексте категории",
-                "Приватные сценарии для семьи и компании",
-                "Быстрый переход к доступности и бронированию",
+                t(locale, { ru: "Тихо и комфортно", en: "Quiet and comfortable", zh: "安静舒适" }),
+                t(locale, {
+                  ru: "Фотографии сразу в контексте категории",
+                  en: "Photos shown in category context",
+                  zh: "照片与房型内容直接对应",
+                }),
+                t(locale, {
+                  ru: "Приватные сценарии для семьи и компании",
+                  en: "Private formats for families and groups",
+                  zh: "适合家庭和团体的私密方案",
+                }),
+                t(locale, {
+                  ru: "Быстрый переход к доступности и бронированию",
+                  en: "Quick path to availability and booking",
+                  zh: "快速查看可订情况并完成预订",
+                }),
               ].map((item) => (
                 <div key={item} className="flex items-center gap-3 text-sm text-[#5d5550]">
                   <SparklesIcon className="h-5 w-5 text-[#c77e44]" />
@@ -875,65 +1168,139 @@ export default function SputnikLanding() {
           </div>
         </section>
 
-        <section id="territory" className="relative overflow-hidden bg-[#fbf5ef] py-20 lg:py-24">
+        <section id="territory" className="relative overflow-hidden bg-[#fbf5ef] py-20 scroll-mt-32 lg:py-24 sm:scroll-mt-36">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(205,152,104,0.22),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(102,144,157,0.12),transparent_32%)]" />
-          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-            <div className="grid items-center gap-12 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="relative z-10" data-reveal>
-                <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">Территория комплекса</p>
-                <h2 className="title-font mt-4 max-w-xl text-4xl leading-[1.06] text-[#1f2837] sm:text-5xl lg:text-[4.2rem]">
-                  Всё уже собрано за вас
-                </h2>
-                <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d5550]">
-                  Проживание, термы, ресторан, прогулочные зоны и сервис находятся рядом, поэтому отдых проходит
-                  спокойно, удобно и без лишних перемещений.
-                </p>
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
+            <div className="grid items-stretch gap-8 xl:grid-cols-[0.94fr_1.06fr]">
+              <div
+                className="relative z-10 overflow-hidden rounded-[36px] border border-[#ead7c8] bg-white/70 shadow-[0_28px_70px_rgba(89,65,40,0.08)]"
+                data-reveal
+              >
+                <div className="absolute inset-0">
+                  <Image
+                    src="/images/gallery_01.jpg"
+                    alt={t(locale, {
+                      ru: "Термальный бассейн и комплекс на территории Спутник Камчатка",
+                      en: "Thermal pool and resort grounds at Sputnik Kamchatka",
+                      zh: "Sputnik Kamchatka 园区内的温泉泳池与建筑",
+                    })}
+                    fill
+                    className="object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,248,242,0.97)_8%,rgba(255,248,242,0.92)_40%,rgba(246,236,227,0.88)_66%,rgba(245,236,228,0.92)_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.72),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(212,147,88,0.14),transparent_32%)]" />
+                </div>
 
-                <div className="mt-8 flex flex-wrap gap-3">
-                  {["Всё рядом", "Без лишней логистики", "Тихий ритм отдыха", "Для семьи и компании"].map((item) => (
+                <div className="relative z-10 flex h-full flex-col px-6 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+                  <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">
+                    {t(locale, {
+                      ru: "с. Паратунка · ул. Елизова, 21",
+                      en: "Paratunka village · 21 Elizova St.",
+                      zh: "帕拉通卡村 · 叶利佐娃街21号",
+                    })}
+                  </p>
+                  <h2 className="title-font mt-4 max-w-xl text-4xl leading-[1.06] text-[#1f2837] sm:text-5xl lg:text-[4.2rem]">
+                    <span className="block">
+                      {t(locale, { ru: "Всё уже собрано", en: "Everything is already arranged", zh: "一切都已为您准备好" })}
+                    </span>
+                    <span className="block">
+                      {t(locale, { ru: "за вас", en: "for you", zh: "无需您再操心" })}
+                    </span>
+                  </h2>
+                  <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d5550]">
+                    {t(locale, {
+                      ru: "Проживание, термальные источники, ресторан, прогулочные зоны и сервис находятся рядом, поэтому отдых проходит спокойно, удобно и без лишних перемещений.",
+                      en: "Accommodation, thermal springs, dining, walking areas, and service are close to each other, so the stay feels calm, convenient, and free from extra movement.",
+                      zh: "住宿、温泉热源体验、餐饮、散步区域和服务都彼此相邻，因此整段度假会更从容、方便，也无需额外奔波。",
+                    })}
+                  </p>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-[#6b6058]">
+                    {t(locale, {
+                      ru: "Это не набор разрозненных услуг, а цельный маршрут: приехать, разместиться, прогреться в бассейнах, спокойно поужинать и остаться в том же темпе отдыха до самого вечера.",
+                      en: "This isn't a scattered set of services but one coherent route: arrive, settle in, warm up in the pools, have dinner, and stay in the same relaxed pace through the evening.",
+                      zh: "这不是零散服务的堆叠，而是一条完整的路线：抵达、入住、在泳池暖身、安静用餐，并把这种放松节奏一直保持到夜晚。",
+                    })}
+                  </p>
+
+                  <div className="mt-8 flex flex-wrap gap-3">
+                  {[
+                    t(locale, { ru: "Всё рядом", en: "Everything nearby", zh: "一切都在附近" }),
+                    t(locale, { ru: "Без лишней логистики", en: "No extra logistics", zh: "无需额外奔波" }),
+                    t(locale, { ru: "Тихий ритм отдыха", en: "Quiet holiday rhythm", zh: "安静的度假节奏" }),
+                    t(locale, { ru: "Для семьи и компании", en: "For family and groups", zh: "适合家庭与团体" }),
+                  ].map((item) => (
                     <span
                       key={item}
-                      className="window-motion rounded-full border border-[#ead7c8] bg-white/76 px-4 py-2 text-sm text-[#5b5049] shadow-[0_12px_28px_rgba(89,65,40,0.06)]"
+                      className="window-motion whitespace-nowrap rounded-full border border-[#ead7c8] bg-white/84 px-4 py-2 text-sm text-[#5b5049] shadow-[0_12px_28px_rgba(89,65,40,0.06)]"
                     >
                       {item}
                     </span>
                   ))}
-                </div>
+                  </div>
 
-                <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-                  <Link
-                    href="#contacts"
-                    className="btn-lux inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#305f74,#23485a)] px-6 py-4 text-base font-semibold text-white"
-                  >
-                    Проверить даты и доступность
-                  </Link>
-                  <Link
-                    href="#restaurant"
-                    className="btn-lux inline-flex items-center justify-center rounded-2xl border border-[#d6b08d] bg-white/78 px-6 py-4 text-base font-semibold text-[#624b39]"
-                  >
-                    Посмотреть, как устроен сервис
-                  </Link>
-                </div>
+                  <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                    <Link
+                      href="#contacts"
+                      className="btn-lux inline-flex items-center justify-center whitespace-nowrap rounded-2xl bg-[linear-gradient(135deg,#305f74,#23485a)] px-6 py-4 text-base font-semibold text-white"
+                    >
+                      {t(locale, { ru: "Проверить даты и доступность", en: "Check dates and availability", zh: "查看日期与可订情况" })}
+                    </Link>
+                    <a
+                      href={yandexRouteHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-lux inline-flex items-center justify-center whitespace-nowrap rounded-2xl border border-[#d6b08d] bg-white/82 px-6 py-4 text-base font-semibold text-[#624b39]"
+                    >
+                      {t(locale, { ru: "Построить маршрут", en: "Build route", zh: "规划路线" })}
+                    </a>
+                  </div>
 
-                <p className="mt-6 max-w-xl text-sm leading-7 text-[#6a6059]">
-                  Всё продумано как единый маршрут: заселение, бассейны, ужин и спокойный вечер на территории в одном
-                  ритме.
-                </p>
+                  <div className="mt-8 w-full max-w-[420px] overflow-hidden rounded-[30px] border border-[#ead7c8] bg-white/88 shadow-[0_18px_42px_rgba(89,65,40,0.08)] backdrop-blur">
+                    <video
+                      className="block h-[240px] w-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      poster="/images/gallery_01.jpg"
+                    >
+                      <source src="/videos/sputnik.mp4" type="video/mp4" />
+                    </video>
+                  </div>
+
+                  <div className="mt-auto grid gap-4 pt-8 sm:grid-cols-2">
+                    <div className="window-motion rounded-[26px] border border-[#ead7c8] bg-white/82 p-5 text-[#5d5550] shadow-[0_16px_36px_rgba(89,65,40,0.08)] backdrop-blur">
+                      <p className="text-xs uppercase tracking-[0.28em] text-[#8a6548]">{t(locale, { ru: "Адрес", en: "Address", zh: "地址" })}</p>
+                      <p className="mt-3 text-sm leading-7">{currentSite.address}</p>
+                    </div>
+                    <div className="window-motion rounded-[26px] border border-[#ead7c8] bg-white/82 p-5 text-[#5d5550] shadow-[0_16px_36px_rgba(89,65,40,0.08)] backdrop-blur">
+                      <p className="text-xs uppercase tracking-[0.28em] text-[#8a6548]">
+                        {t(locale, { ru: "Как ощущается отдых", en: "How the stay feels", zh: "这段度假的感受" })}
+                      </p>
+                      <p className="mt-3 text-sm leading-7">
+                        {t(locale, {
+                          ru: "Всё продумано как единый маршрут: заселение, бассейны, ужин и спокойный вечер на территории в одном ритме.",
+                          en: "Everything is designed as one route: check-in, pools, dinner, and a calm evening on the grounds in the same rhythm.",
+                          zh: "一切都被设计成一条完整路线：入住、泳池、晚餐，以及同一节奏下的宁静夜晚。",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2" data-reveal>
-                {atmosphereCards.map((card, index) => (
+              <div className="grid gap-5 md:auto-rows-fr md:grid-cols-2" data-reveal>
+                {currentAtmosphereCards.map((card) => (
                   <article
                     key={card.title}
-                    className={`sputnik-light-card rounded-[30px] overflow-hidden ${card.className} ${
-                      index === atmosphereCards.length - 1 ? "md:col-span-2" : ""
-                    }`}
+                    className={`sputnik-light-card flex h-full flex-col rounded-[30px] overflow-hidden ${card.className}`}
                   >
-                    <div className="relative h-48 overflow-hidden">
+                    <div className="relative h-48 overflow-hidden md:h-52">
                       <Image src={card.image} alt={card.title} fill className="object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/38 via-transparent to-transparent" />
                     </div>
-                    <div className="p-6">
+                    <div className="flex flex-1 flex-col p-6">
                       <p className="title-font text-3xl text-[#1f2837]">{card.title}</p>
                       <p className="mt-3 text-sm leading-7 text-[#5d5550]">{card.text}</p>
                     </div>
@@ -944,22 +1311,42 @@ export default function SputnikLanding() {
           </div>
         </section>
         
-        <section id="spa" className="relative overflow-hidden bg-[linear-gradient(180deg,#fff8f2_0%,#f5ece4_100%)] py-20 lg:py-24">
+        <section id="spa" className="relative overflow-hidden bg-[linear-gradient(180deg,#fff8f2_0%,#f5ece4_100%)] py-20 scroll-mt-32 lg:py-24 sm:scroll-mt-36">
           <div className="pointer-events-none absolute left-[-12%] top-[10%] h-[420px] w-[420px] rounded-full bg-[#d69b66]/16 blur-3xl" />
           <div className="pointer-events-none absolute right-[-10%] top-[20%] h-[500px] w-[500px] rounded-full bg-[#6a97a0]/16 blur-3xl" />
-          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
             <div
               className="grid items-center gap-12 xl:grid-cols-[0.88fr_1.12fr]"
               onMouseLeave={() => setActivePoolStoryId("guests")}
             >
               <div data-reveal>
-                <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">Термальный бассейн</p>
+                <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">
+                  {t(locale, {
+                    ru: "Тёплая вода · чаша · впечатление",
+                    en: "Warm water · bowl · impression",
+                    zh: "温暖水域 · 池体 · 感受",
+                  })}
+                </p>
                 <h2 className="title-font mt-4 max-w-2xl text-4xl leading-[1.04] text-[#1f2837] sm:text-5xl lg:text-[4.3rem]">
-                  Термальный бассейн от подготовки до впечатления
+                  {t(locale, {
+                    ru: "Термальный бассейн от подготовки до впечатления",
+                    en: "The thermal pool from preparation to impression",
+                    zh: "从准备过程到最终感受的温泉泳池",
+                  })}
                 </h2>
-                <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d5550]">
-                  Один бассейн раскрывается в трёх состояниях: подготовленная чаша, термальная вода и то ощущение
-                  отдыха, ради которого сюда приезжают в любое время года.
+                <p className="mt-5 max-w-2xl text-base leading-7 text-[#6b6058]">
+                  {t(locale, {
+                    ru: "Три слоя справа показывают не просто иллюстрацию, а весь путь впечатления: как подготовленная чаша превращается в тёплую воду и в тот самый момент отдыха, ради которого сюда возвращаются.",
+                    en: "The three layers on the right show not just an illustration but the whole path of the experience: how a prepared bowl becomes warm water and then the moment of rest people return for.",
+                    zh: "右侧三层结构展示的不只是示意图，而是完整的体验路径：准备好的池体如何变成温暖水域，再变成让人愿意再次回来的那一刻放松感。",
+                  })}
+                </p>
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d5550]">
+                  {t(locale, {
+                    ru: "Один бассейн раскрывается в трёх состояниях: подготовленная чаша, термальная вода и то ощущение отдыха, ради которого сюда приезжают в любое время года.",
+                    en: "One pool opens in three states: the prepared bowl, the thermal water, and the feeling of rest people come for in every season.",
+                    zh: "同一个泳池可以被看作三种状态：准备好的池体、温泉热水，以及四季都值得前来体验的放松感受。",
+                  })}
                 </p>
 
                 <div className="window-motion mt-8 overflow-hidden rounded-[30px] border border-[#ead7c8] bg-white/82 p-6 shadow-[0_24px_60px_rgba(89,65,40,0.08)]">
@@ -980,7 +1367,9 @@ export default function SputnikLanding() {
                         <div className="mt-5 inline-flex items-center gap-3 rounded-full border border-[#cfe3ea] bg-[#eef8fb] px-4 py-3 text-[#31586b]">
                           <FireIcon className="h-5 w-5" />
                           <div>
-                            <p className="text-[11px] uppercase tracking-[0.24em] text-[#62808b]">Температура</p>
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-[#62808b]">
+                              {t(locale, { ru: "Температура", en: "Temperature", zh: "温度" })}
+                            </p>
                             <p className="text-lg font-semibold">38.5°C</p>
                           </div>
                         </div>
@@ -990,7 +1379,11 @@ export default function SputnikLanding() {
                 </div>
 
                 <p className="mt-6 max-w-xl text-sm leading-7 text-[#6b6058]">
-                  Наведите на воду или чашу, чтобы увидеть, из чего складываются тепло, чистота и спокойствие отдыха.
+                  {t(locale, {
+                    ru: "Наводите на мишени справа, чтобы увидеть, из чего складываются тепло, чистота и спокойствие отдыха.",
+                    en: "Hover the markers on the right to see how warmth, cleanliness, and a calm stay are built.",
+                    zh: "将光标移到右侧点位上，查看温暖感、洁净度和宁静度假体验是如何形成的。",
+                  })}
                 </p>
               </div>
 
@@ -998,6 +1391,39 @@ export default function SputnikLanding() {
                 <div className="pointer-events-none absolute inset-y-[8%] left-[4%] w-[280px] rounded-full bg-white/30 blur-3xl" />
                 <div className="pointer-events-none absolute right-[8%] top-[10%] h-[240px] w-[240px] rounded-full bg-[#8fd7e8]/12 blur-3xl" />
                 <div className="pointer-events-none absolute bottom-[6%] right-[6%] h-[180px] w-[360px] rounded-full bg-[#d9ebee]/18 blur-3xl" />
+
+                <button
+                  type="button"
+                  aria-label={`Показать: ${guestsPoolStory.title}`}
+                  onMouseEnter={() => setActivePoolStoryId(guestsPoolStory.id)}
+                  onFocus={() => setActivePoolStoryId(guestsPoolStory.id)}
+                  onClick={() => setActivePoolStoryId(guestsPoolStory.id)}
+                  className="absolute left-[54%] top-[14%] z-40 hidden -translate-x-1/2 -translate-y-1/2"
+                >
+                  <TargetCue active={activePoolStoryId === guestsPoolStory.id} />
+                </button>
+
+                <button
+                  type="button"
+                  aria-label={`Показать: ${waterPoolStory.title}`}
+                  onMouseEnter={() => setActivePoolStoryId(waterPoolStory.id)}
+                  onFocus={() => setActivePoolStoryId(waterPoolStory.id)}
+                  onClick={() => setActivePoolStoryId(waterPoolStory.id)}
+                  className="absolute left-[46%] top-[46%] z-40 hidden -translate-x-1/2 -translate-y-1/2"
+                >
+                  <TargetCue active={activePoolStoryId === waterPoolStory.id} />
+                </button>
+
+                <button
+                  type="button"
+                  aria-label={`Показать: ${cleanPoolStory.title}`}
+                  onMouseEnter={() => setActivePoolStoryId(cleanPoolStory.id)}
+                  onFocus={() => setActivePoolStoryId(cleanPoolStory.id)}
+                  onClick={() => setActivePoolStoryId(cleanPoolStory.id)}
+                  className="absolute left-[45%] top-[81%] z-40 hidden -translate-x-1/2 -translate-y-1/2"
+                >
+                  <TargetCue active={activePoolStoryId === cleanPoolStory.id} />
+                </button>
 
                 <motion.button
                   type="button"
@@ -1081,23 +1507,32 @@ export default function SputnikLanding() {
           </div>
         </section>
 
-        <section id="restaurant" className="relative overflow-hidden bg-[#f7f0e8] py-20 lg:py-24">
-          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <section id="restaurant" className="relative overflow-hidden bg-[#f7f0e8] py-20 scroll-mt-32 lg:py-24 sm:scroll-mt-36">
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between" data-reveal>
               <div className="max-w-3xl">
-                <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">Ресторан и паб</p>
+                <p className="text-sm uppercase tracking-[0.32em] text-[#8a6548]">
+                  {t(locale, { ru: "Ресторан и паб", en: "Restaurant and pub", zh: "餐厅与酒吧" })}
+                </p>
                 <h2 className="title-font mt-4 text-4xl leading-[1.06] text-[#1f2837] sm:text-5xl">
-                  Когда ужин тоже становится частью впечатления
+                  {t(locale, {
+                    ru: "Когда ужин тоже становится частью впечатления",
+                    en: "When dinner also becomes part of the experience",
+                    zh: "当晚餐也成为度假体验的一部分",
+                  })}
                 </h2>
                 <p className="mt-6 text-lg leading-8 text-[#5d5550]">
-                  После терм и прогулки можно спокойно поужинать на территории, остаться на вечер или вернуться в номер
-                  без лишних поездок.
+                  {t(locale, {
+                    ru: "После термальных источников и прогулки можно спокойно поужинать на территории, остаться на вечер или вернуться в номер без лишних поездок.",
+                    en: "After the thermal springs and a walk, you can have dinner on-site, stay for the evening, or return to your room without extra trips.",
+                    zh: "体验完温泉热源和散步之后，您可以直接在园区内安心用餐、停留到夜晚，或回到房间休息，无需额外出行。",
+                  })}
                 </p>
               </div>
             </div>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-2">
-              {diningCards.map((card) => (
+              {currentDiningCards.map((card) => (
                 <article
                   key={card.title}
                   className="sputnik-light-card overflow-hidden rounded-[32px]"
@@ -1132,7 +1567,7 @@ export default function SputnikLanding() {
                         href="#contacts"
                         className="btn-lux inline-flex items-center justify-center rounded-2xl border border-[#d6b08d] bg-white/76 px-5 py-4 text-base font-semibold text-[#624b39]"
                       >
-                        Забронировать столик
+                        {t(locale, { ru: "Забронировать столик", en: "Reserve a table", zh: "预订餐桌" })}
                       </Link>
                     </div>
                   </div>
@@ -1142,21 +1577,36 @@ export default function SputnikLanding() {
           </div>
         </section>
 
-        <section id="contacts" className="relative overflow-hidden bg-[#0d1425] py-20 text-white lg:py-24">
+        <section id="contacts" className="relative overflow-hidden bg-[#0d1425] py-20 text-white scroll-mt-32 lg:py-24 sm:scroll-mt-36">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,147,88,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(69,103,117,0.24),transparent_28%)]" />
-          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
             <div className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr]">
               <div data-reveal>
-                <p className="text-sm uppercase tracking-[0.32em] text-[#f0c996]">Контакты и бронирование</p>
+                <p className="text-sm uppercase tracking-[0.32em] text-[#f0c996]">
+                  {t(locale, { ru: "Контакты и бронирование", en: "Contacts and booking", zh: "联系与预订" })}
+                </p>
                 <h2 className="title-font mt-4 max-w-xl text-4xl leading-[1.06] text-white sm:text-5xl">
-                  Приезжайте. Остальное соберём за вас.
+                  {t(locale, {
+                    ru: "Приезжайте. Остальное соберём за вас.",
+                    en: "Come over. We'll assemble the rest for you.",
+                    zh: "只管出发，其余安排交给我们。",
+                  })}
                 </h2>
                 <p className="mt-6 max-w-2xl text-lg leading-8 text-white/74">
-                  Поможем с маршрутом, ответим на вопросы, подберём проживание и быстро подтвердим бронирование.
+                  {t(locale, {
+                    ru: "Поможем с маршрутом, ответим на вопросы, подберём проживание и быстро подтвердим бронирование.",
+                    en: "We'll help with the route, answer questions, match the stay format, and confirm the booking quickly.",
+                    zh: "我们会帮您规划路线、解答问题、匹配住宿形式，并快速确认预订。",
+                  })}
                 </p>
 
                 <div className="mt-8 flex flex-wrap gap-3">
-                  {["Быстрая связь", "Понятные условия", "Маршрут и контакты", "Подтверждение без суеты"].map((item) => (
+                  {[
+                    t(locale, { ru: "Быстрая связь", en: "Quick contact", zh: "快速联系" }),
+                    t(locale, { ru: "Понятные условия", en: "Clear conditions", zh: "条件清晰" }),
+                    t(locale, { ru: "Маршрут и контакты", en: "Route and contacts", zh: "路线与联系方式" }),
+                    t(locale, { ru: "Подтверждение без суеты", en: "Smooth confirmation", zh: "轻松确认" }),
+                  ].map((item) => (
                     <span
                       key={item}
                       className="window-motion rounded-full border border-white/12 bg-white/6 px-4 py-2 text-sm text-white/76"
@@ -1168,9 +1618,11 @@ export default function SputnikLanding() {
 
                 <div className="mt-10 grid gap-4">
                   <div className="window-motion rounded-[30px] border border-white/10 bg-white/6 p-6 backdrop-blur-xl">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/52">Бронирование проживания</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/52">
+                      {t(locale, { ru: "Бронирование проживания", en: "Accommodation booking", zh: "住宿预订" })}
+                    </p>
                     <div className="mt-4 space-y-2">
-                      {site.bookingPhones.map((phone) => (
+                      {currentSite.bookingPhones.map((phone) => (
                         <a key={phone.tel} className="block text-2xl font-semibold text-white" href={`tel:${phone.tel}`}>
                           {phone.display}
                         </a>
@@ -1178,7 +1630,7 @@ export default function SputnikLanding() {
                     </div>
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                       <Link
-                        href={site.telegramHref}
+                        href={currentSite.telegramHref}
                         target="_blank"
                         rel="noreferrer"
                         className="btn-lux inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-5 py-4 text-base font-semibold text-white"
@@ -1186,7 +1638,7 @@ export default function SputnikLanding() {
                         Telegram
                       </Link>
                       <Link
-                        href={site.maxHref}
+                        href={currentSite.maxHref}
                         target="_blank"
                         rel="noreferrer"
                         className="btn-lux inline-flex items-center justify-center rounded-2xl border border-white/14 bg-white/5 px-5 py-4 text-base font-semibold text-white"
@@ -1197,29 +1649,31 @@ export default function SputnikLanding() {
                   </div>
 
                   <div className="window-motion rounded-[30px] border border-white/10 bg-white/6 p-6 backdrop-blur-xl">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/52">На территории комплекса</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/52">
+                      {t(locale, { ru: "На территории комплекса", en: "On the resort grounds", zh: "园区内" })}
+                    </p>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <div className="window-motion rounded-[24px] border border-white/10 bg-white/5 p-4">
-                        <p className="text-sm font-semibold text-white">{site.restaurant.name}</p>
-                        <p className="mt-2 text-sm leading-7 text-white/68">{site.restaurant.hours}</p>
-                        <a className="mt-2 block text-base text-white/84" href={`tel:${site.restaurant.phoneTel}`}>
-                          {site.restaurant.phoneDisplay}
+                        <p className="text-sm font-semibold text-white">{currentSite.restaurant.name}</p>
+                        <p className="mt-2 text-sm leading-7 text-white/68">{currentSite.restaurant.hours}</p>
+                        <a className="mt-2 block text-base text-white/84" href={`tel:${currentSite.restaurant.phoneTel}`}>
+                          {currentSite.restaurant.phoneDisplay}
                         </a>
                       </div>
                       <div className="window-motion rounded-[24px] border border-white/10 bg-white/5 p-4">
-                        <p className="text-sm font-semibold text-white">{site.pub.name}</p>
-                        <p className="mt-2 text-sm leading-7 text-white/68">{site.pub.hours}</p>
-                        <a className="mt-2 block text-base text-white/84" href={`tel:${site.pub.phoneTel}`}>
-                          {site.pub.phoneDisplay}
+                        <p className="text-sm font-semibold text-white">{currentSite.pub.name}</p>
+                        <p className="mt-2 text-sm leading-7 text-white/68">{currentSite.pub.hours}</p>
+                        <a className="mt-2 block text-base text-white/84" href={`tel:${currentSite.pub.phoneTel}`}>
+                          {currentSite.pub.phoneDisplay}
                         </a>
                       </div>
                     </div>
                     <p className="mt-5 text-sm leading-7 text-white/68">
-                      Адрес: {site.address}
+                      {t(locale, { ru: "Адрес", en: "Address", zh: "地址" })}: {currentSite.address}
                       <br />
                       E-mail:{" "}
-                      <a className="underline underline-offset-4" href={`mailto:${site.email}`}>
-                        {site.email}
+                      <a className="underline underline-offset-4" href={`mailto:${currentSite.email}`}>
+                        {currentSite.email}
                       </a>
                     </p>
                   </div>
@@ -1230,7 +1684,11 @@ export default function SputnikLanding() {
                 <div className="window-motion overflow-hidden rounded-[34px] border border-white/10 bg-white/6 p-3 shadow-[0_28px_90px_rgba(3,8,20,0.28)] backdrop-blur-xl">
                   <div className="overflow-hidden rounded-[28px]">
                     <iframe
-                      title="Яндекс Карта — Спутник Камчатка"
+                      title={t(locale, {
+                        ru: "Яндекс Карта — Спутник Камчатка",
+                        en: "Yandex Map — Sputnik Kamchatka",
+                        zh: "Yandex 地图 — Sputnik Kamchatka",
+                      })}
                       src="https://yandex.ru/map-widget/v1/?mode=search&text=%D0%9A%D0%B0%D0%BC%D1%87%D0%B0%D1%82%D1%81%D0%BA%D0%B8%D0%B9%20%D0%BA%D1%80%D0%B0%D0%B9%2C%20%D0%BF.%20%D0%9F%D0%B0%D1%80%D0%B0%D1%82%D1%83%D0%BD%D0%BA%D0%B0%2C%20%D1%83%D0%BB.%20%D0%95%D0%BB%D0%B8%D0%B7%D0%BE%D0%B2%D0%B0%2039&z=14"
                       width="100%"
                       height="420"
@@ -1240,20 +1698,20 @@ export default function SputnikLanding() {
                   </div>
                   <div className="grid gap-3 p-5 md:grid-cols-2">
                     <a
-                      href="https://yandex.ru/maps/?rtext=~%D0%9A%D0%B0%D0%BC%D1%87%D0%B0%D1%82%D1%81%D0%BA%D0%B8%D0%B9%20%D0%BA%D1%80%D0%B0%D0%B9%2C%20%D0%BF.%20%D0%9F%D0%B0%D1%80%D0%B0%D1%82%D1%83%D0%BD%D0%BA%D0%B0%2C%20%D1%83%D0%BB.%20%D0%95%D0%BB%D0%B8%D0%B7%D0%BE%D0%B2%D0%B0%2039&rtt=auto"
+                      href={yandexRouteHref}
                       target="_blank"
                       rel="noreferrer"
                       className="btn-lux inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/8 px-5 py-4 text-base font-semibold text-white"
                     >
                       <MapPinIcon className="h-5 w-5" />
-                      Построить маршрут
+                      {t(locale, { ru: "Построить маршрут", en: "Build route", zh: "规划路线" })}
                     </a>
                     <a
                       href="/docs/sputnik-kamchatka.vcf"
                       className="btn-lux inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/8 px-5 py-4 text-base font-semibold text-white"
                     >
                       <PhoneIcon className="h-5 w-5" />
-                      Сохранить контакты
+                      {t(locale, { ru: "Сохранить контакты", en: "Save contacts", zh: "保存联系方式" })}
                     </a>
                   </div>
                 </div>
@@ -1264,27 +1722,35 @@ export default function SputnikLanding() {
                       24/7
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-[#f0c996]">Быстрое бронирование</p>
-                      <p className="title-font mt-2 text-3xl text-white">Готовы к перезагрузке?</p>
+                      <p className="text-xs uppercase tracking-[0.3em] text-[#f0c996]">
+                        {t(locale, { ru: "Быстрое бронирование", en: "Quick booking", zh: "快速预订" })}
+                      </p>
+                      <p className="title-font mt-2 text-3xl text-white">
+                        {t(locale, { ru: "Готовы к перезагрузке?", en: "Ready to reset?", zh: "准备好好放松一下了吗？" })}
+                      </p>
                       <p className="mt-3 text-sm leading-7 text-white/72">
-                        Проверим даты, соберём формат проживания и быстро подскажем лучший сценарий для вашей компании.
+                        {t(locale, {
+                          ru: "Проверим даты, соберём формат проживания и быстро подскажем лучший сценарий для вашей компании.",
+                          en: "We'll check the dates, shape the stay format, and quickly suggest the best plan for your group.",
+                          zh: "我们会确认日期、安排合适的住宿形式，并快速为您的同行人推荐最佳方案。",
+                        })}
                       </p>
                     </div>
                   </div>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <a
-                      href={`tel:${site.bookingPhones[0].tel}`}
+                      href={`tel:${currentSite.bookingPhones[0].tel}`}
                       className="btn-lux inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d49358,#b76b32)] px-6 py-4 text-base font-semibold text-white"
                     >
-                      Позвонить и забронировать
+                      {t(locale, { ru: "Позвонить и забронировать", en: "Call and book", zh: "致电预订" })}
                     </a>
                     <Link
-                      href={site.telegramHref}
+                      href={currentSite.telegramHref}
                       target="_blank"
                       rel="noreferrer"
                       className="btn-lux inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/8 px-6 py-4 text-base font-semibold text-white"
                     >
-                      Написать администратору
+                      {t(locale, { ru: "Написать администратору", en: "Message the administrator", zh: "联系管理员" })}
                     </Link>
                   </div>
                 </div>
@@ -1295,23 +1761,27 @@ export default function SputnikLanding() {
       </main>
 
       <footer className="border-t border-white/10 bg-[#09111f]">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-5 px-4 py-8 text-sm text-white/62 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="mx-auto flex max-w-[1280px] flex-col gap-5 px-4 py-8 text-sm text-white/62 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <p className="title-font text-2xl tracking-[0.12em] text-[#f0d0ad]">СПУТНИК</p>
-            <p className="mt-2 max-w-xl leading-7">{site.address}</p>
+            <BrandLogo className="h-auto w-[112px] sm:w-[120px]" />
+            <p className="mt-2 max-w-xl leading-7">{currentSite.address}</p>
           </div>
           <div className="flex flex-wrap gap-4">
             <Link href="#accommodation" className="transition hover:text-white">
-              Проживание
+              {t(locale, { ru: "Проживание", en: "Stay", zh: "住宿" })}
             </Link>
             <Link href="#spa" className="transition hover:text-white">
-              SPA и термы
+              {t(locale, {
+                ru: "SPA и термальные источники",
+                en: "SPA & thermal springs",
+                zh: "SPA 与温泉热源",
+              })}
             </Link>
             <Link href="#restaurant" className="transition hover:text-white">
-              Ресторан
+              {t(locale, { ru: "Ресторан", en: "Dining", zh: "餐饮" })}
             </Link>
             <Link href="#contacts" className="transition hover:text-white">
-              Контакты
+              {t(locale, { ru: "Контакты", en: "Contacts", zh: "联系" })}
             </Link>
           </div>
         </div>

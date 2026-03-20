@@ -23,7 +23,7 @@ export default function PageHero({
   actions?: Action[];
 }) {
   return (
-    <section className="relative overflow-hidden pt-36 sm:pt-40 lg:pt-44">
+    <section className="relative overflow-hidden pt-44 sm:pt-48 lg:pt-52">
       <div className="absolute inset-0">
         <Image src={image} alt={title} fill priority className="hero-image-motion object-cover object-center" />
         <div className="hero-glow absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(213,146,89,0.16),transparent_36%),linear-gradient(100deg,rgba(4,9,18,0.92)_14%,rgba(7,13,24,0.74)_44%,rgba(8,12,21,0.48)_100%)]" />
@@ -31,7 +31,7 @@ export default function PageHero({
         <div className="absolute inset-0 lux-noise opacity-70" />
       </div>
 
-      <div className="relative mx-auto max-w-[1400px] px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">
+      <div className="relative mx-auto max-w-[1280px] px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">
         <div className="max-w-4xl" data-reveal>
           <p className="text-sm uppercase tracking-[0.32em] text-[#f0c996]">{eyebrow}</p>
           <h1 className="title-font mt-4 text-4xl leading-[1.04] text-white sm:text-5xl lg:text-[4.35rem]">{title}</h1>

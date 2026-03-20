@@ -23,7 +23,20 @@ html, body{
 }
 
 html{
+  font-size: 14.5px;
   scroll-behavior: smooth;
+}
+
+@media (min-width: 1280px){
+  html{
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1536px){
+  html{
+    font-size: 13.5px;
+  }
 }
 
 body{
@@ -261,8 +274,7 @@ body{
 }
 
 .hero-image-motion{
-  animation: heroSlowZoom 16s ease-in-out infinite alternate;
-  transform-origin: center center;
+  transform: none;
 }
 
 .window-breathe{
@@ -270,7 +282,7 @@ body{
 }
 
 .hero-glow{
-  animation: heroGlow 8s ease-in-out infinite alternate;
+  opacity: 1;
 }
 
 .pool-layer-scene{
